@@ -15,13 +15,17 @@ class TreeGCN(nn.Module):
         self.activation = activation
         super(TreeGCN, self).__init__()
 
+        #jz ancestor term
         self.W_root = nn.ModuleList([nn.Linear(features[inx], self.out_feature, bias=False) for inx in range(self.depth+1)])
 
         if self.upsample:
+            # shape (node, in_feature, out_feature)
             self.W_branch = nn.Parameter(torch.FloatTensor(self.node, self.in_feature, self.degree*self.in_feature))
         
+        #jz TODO assume below W_loop is correct first
         self.W_loop = nn.Sequential(nn.Linear(self.in_feature, self.in_feature*support, bias=False),
                                     nn.Linear(self.in_feature*support, self.out_feature, bias=False))
+        # import pdb; pdb.set_trace()
 
         self.bias = nn.Parameter(torch.FloatTensor(1, self.degree, self.out_feature))
 

@@ -18,7 +18,7 @@ class GradientPenalty:
 
     def __call__(self, netD, real_data, fake_data):
         batch_size = real_data.size(0)
-
+        #jz NOTE not shuffled when comparing the real and fake, hence, no need to generate more fake data
         fake_data = fake_data[:batch_size]
         
         alpha = torch.rand(batch_size, 1, 1, requires_grad=True).to(self.device)

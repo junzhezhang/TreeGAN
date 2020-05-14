@@ -6,7 +6,8 @@ import torch
 import numpy as np
 
 class BenchmarkDataset(data.Dataset):
-    def __init__(self, root, npoints=2500, uniform=False, classification=False, class_choice=None):
+    #jz default classification=False
+    def __init__(self, root, npoints=2500, uniform=False, classification=True, class_choice=None):
         self.npoints = npoints
         self.root = root
         self.catfile = './data/synsetoffset2category.txt'
@@ -14,15 +15,22 @@ class BenchmarkDataset(data.Dataset):
         self.uniform = uniform
         self.classification = classification
 
+        
+        #jz: if None, just all cat; if not None, just a single cat
         with open(self.catfile, 'r') as f:
             for line in f:
                 ls = line.strip().split()
                 self.cat[ls[0]] = ls[1]
-                
-        if not class_choice is  None:
+        # import pdb; pdb.set_trace()
+
+        #jz input 'None' is str
+        if class_choice != 'None':
             self.cat = {k:v for k,v in self.cat.items() if k in class_choice}
+        
+        print ('self.cat:',self.cat)
 
         self.meta = {}
+        
         for item in self.cat:
             self.meta[item] = []
             dir_point = os.path.join(self.root, self.cat[item], 'points')
@@ -39,7 +47,7 @@ class BenchmarkDataset(data.Dataset):
         for item in self.cat:
             for fn in self.meta[item]:
                 self.datapath.append((item, fn[0], fn[1], fn[2]))
-
+        # import pdb; pdb.set_trace()
 
         self.classes = dict(zip(sorted(self.cat), range(len(self.cat))))
         print(self.classes)

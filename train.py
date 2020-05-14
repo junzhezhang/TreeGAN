@@ -17,31 +17,39 @@ class TreeGAN():
     def __init__(self, args):
         self.args = args
         # ------------------------------------------------Dataset---------------------------------------------- #
-        self.data = BenchmarkDataset(root=args.dataset_path, npoints=args.point_num, uniform=True, class_choice=args.class_choice)
+        #jz default unifrom=True
+        self.data = BenchmarkDataset(root=args.dataset_path, npoints=args.point_num, uniform=None, class_choice=args.class_choice)
         self.dataLoader = torch.utils.data.DataLoader(self.data, batch_size=args.batch_size, shuffle=True, pin_memory=True, num_workers=4)
         print("Training Dataset : {} prepared.".format(len(self.data)))
         # ----------------------------------------------------------------------------------------------------- #
 
         # -------------------------------------------------Module---------------------------------------------- #
         self.G = Generator(batch_size=args.batch_size, features=args.G_FEAT, degrees=args.DEGREE, support=args.support).to(args.device)
-        self.D = Discriminator(batch_size=args.batch_size, features=0.5*args.D_FEAT).to(args.device)             
-        
+        # import pdb; pdb.set_trace()
+        #jz default features=0.5*args.D_FEAT
+        self.D = Discriminator(batch_size=args.batch_size, features=args.D_FEAT).to(args.device)             
+        #jz parallel
+        # self.G = nn.DataParallel(self.G)
+        self.D = nn.DataParallel(self.D)
+
         self.optimizerG = optim.Adam(self.G.parameters(), lr=args.lr, betas=(0, 0.99))
         self.optimizerD = optim.Adam(self.D.parameters(), lr=args.lr, betas=(0, 0.99))
-
+        #jz TODO check if think can be speed up via multi-GPU
         self.GP = GradientPenalty(args.lambdaGP, gamma=1, device=args.device)
         print("Network prepared.")
         # ----------------------------------------------------------------------------------------------------- #
 
         # ---------------------------------------------Visualization------------------------------------------- #
-        self.vis = visdom.Visdom(port=args.visdom_port)
-        assert self.vis.check_connection()
-        print("Visdom connected.")
+        #jz TODO visdom
+        # self.vis = visdom.Visdom(port=args.visdom_port)
+        # assert self.vis.check_connection()
+        # print("Visdom connected.")
         # ----------------------------------------------------------------------------------------------------- #
 
     def run(self, save_ckpt=None, load_ckpt=None, result_path=None):        
         color_num = self.args.visdom_color
         chunk_size = int(self.args.point_num / color_num)
+        #jz TODO???
         colors = np.array([(227,0,27),(231,64,28),(237,120,15),(246,176,44),
                            (252,234,0),(224,221,128),(142,188,40),(18,126,68),
                            (63,174,0),(113,169,156),(164,194,184),(51,186,216),
@@ -80,6 +88,7 @@ class TreeGAN():
                 point = point.to(self.args.device)
 
                 # -------------------- Discriminator -------------------- #
+                tic = time.time()
                 for d_iter in range(self.args.D_iter):
                     self.D.zero_grad()
                     
@@ -103,7 +112,7 @@ class TreeGAN():
                     self.optimizerD.step()
 
                 loss_log['D_loss'].append(d_loss.item())                  
-                
+                toc = time.time()
                 # ---------------------- Generator ---------------------- #
                 self.G.zero_grad()
                 
@@ -119,35 +128,40 @@ class TreeGAN():
                 self.optimizerG.step()
 
                 loss_log['G_loss'].append(g_loss.item())
-
+                tac = time.time()
                 # --------------------- Visualization -------------------- #
 
                 print("[Epoch/Iter] ", "{:3} / {:3}".format(epoch, _iter),
                       "[ D_Loss ] ", "{: 7.6f}".format(d_loss), 
                       "[ G_Loss ] ", "{: 7.6f}".format(g_loss), 
-                      "[ Time ] ", "{:4.2f}s".format(time.time()-start_time))
+                      "[ Time ] ", "{:4.2f}s".format(time.time()-start_time),
+                      "{:4.2f}s".format(toc-tic),
+                      "{:4.2f}s".format(tac-toc))
 
-                if _iter % 10 == 0:
-                    generated_point = self.G.getPointcloud()
-                    plot_X = np.stack([np.arange(len(loss_log[legend])) for legend in loss_legend], 1)
-                    plot_Y = np.stack([np.array(loss_log[legend]) for legend in loss_legend], 1)
+                # jz TODO visdom is disabled
+                # if _iter % 10 == 0:
+                #     generated_point = self.G.getPointcloud()
+                #     plot_X = np.stack([np.arange(len(loss_log[legend])) for legend in loss_legend], 1)
+                #     plot_Y = np.stack([np.array(loss_log[legend]) for legend in loss_legend], 1)
 
-                    self.vis.line(X=plot_X, Y=plot_Y, win=1,
-                                  opts={'title': 'TreeGAN Loss', 'legend': loss_legend, 'xlabel': 'Iteration', 'ylabel': 'Loss'})
+                #     self.vis.line(X=plot_X, Y=plot_Y, win=1,
+                #                   opts={'title': 'TreeGAN Loss', 'legend': loss_legend, 'xlabel': 'Iteration', 'ylabel': 'Loss'})
 
-                    self.vis.scatter(X=generated_point[:,torch.LongTensor([2,0,1])], Y=label, win=2,
-                                     opts={'title': "Generated Pointcloud", 'markersize': 2, 'markercolor': colors, 'webgl': True})
+                #     self.vis.scatter(X=generated_point[:,torch.LongTensor([2,0,1])], Y=label, win=2,
+                #                      opts={'title': "Generated Pointcloud", 'markersize': 2, 'markercolor': colors, 'webgl': True})
 
-                    if len(metric['FPD']) > 0:
-                        self.vis.line(X=np.arange(len(metric['FPD'])), Y=np.array(metric['FPD']), win=3, 
-                                      opts={'title': "Frechet Pointcloud Distance", 'legend': ["{} / FPD best : {:.6f}".format(np.argmin(metric['FPD']), np.min(metric['FPD']))]})
+                #     if len(metric['FPD']) > 0:
+                #         self.vis.line(X=np.arange(len(metric['FPD'])), Y=np.array(metric['FPD']), win=3, 
+                #                       opts={'title': "Frechet Pointcloud Distance", 'legend': ["{} / FPD best : {:.6f}".format(np.argmin(metric['FPD']), np.min(metric['FPD']))]})
 
-                    print('Figures are saved.')
+                #     print('Figures are saved.')
             
             # ---------------- Frechet Pointcloud Distance --------------- #
             if epoch % 1 == 0 and not result_path == None:
                 fake_pointclouds = torch.Tensor([])
-                for i in range(250): # For 5000 samples
+                # jz, adjust for different batch size
+                test_batch_num = int(5000/self.args.batch_size)
+                for i in range(test_batch_num): # For 5000 samples
                     z = torch.randn(self.args.batch_size, 1, 96).to(self.args.device)
                     tree = [z]
                     with torch.no_grad():
@@ -171,7 +185,7 @@ class TreeGAN():
                         'D_loss': loss_log['D_loss'],
                         'G_loss': loss_log['G_loss'],
                         'FPD': metric['FPD']
-                }, save_ckpt+str(epoch)+'.pt')
+                }, save_ckpt+str(epoch)+'_'+class_name+'.pt')
 
                 print('Checkpoint is saved.')
             
