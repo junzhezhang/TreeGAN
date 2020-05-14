@@ -81,6 +81,9 @@ class TreeGAN():
             print("Checkpoint loaded.")
 
         for epoch in range(epoch_log, self.args.epochs):
+            epoch_g_loss = []
+            epoch_d_loss = []
+            epoch_time = time.time()
             for _iter, data in enumerate(self.dataLoader):
                 # Start Time
                 start_time = time.time()
@@ -111,7 +114,8 @@ class TreeGAN():
                     d_loss_gp.backward()
                     self.optimizerD.step()
 
-                loss_log['D_loss'].append(d_loss.item())                  
+                loss_log['D_loss'].append(d_loss.item())   
+                epoch_d_loss.append(d_loss.item())          
                 toc = time.time()
                 # ---------------------- Generator ---------------------- #
                 self.G.zero_grad()
@@ -128,15 +132,17 @@ class TreeGAN():
                 self.optimizerG.step()
 
                 loss_log['G_loss'].append(g_loss.item())
+                epoch_g_loss.append(g_loss.item())
                 tac = time.time()
                 # --------------------- Visualization -------------------- #
-
-                print("[Epoch/Iter] ", "{:3} / {:3}".format(epoch, _iter),
-                      "[ D_Loss ] ", "{: 7.6f}".format(d_loss), 
-                      "[ G_Loss ] ", "{: 7.6f}".format(g_loss), 
-                      "[ Time ] ", "{:4.2f}s".format(time.time()-start_time),
-                      "{:4.2f}s".format(toc-tic),
-                      "{:4.2f}s".format(tac-toc))
+                verbose = None
+                if verbose is not None:
+                    print("[Epoch/Iter] ", "{:3} / {:3}".format(epoch, _iter),
+                        "[ D_Loss ] ", "{: 7.6f}".format(d_loss), 
+                        "[ G_Loss ] ", "{: 7.6f}".format(g_loss), 
+                        "[ Time ] ", "{:4.2f}s".format(time.time()-start_time),
+                        "{:4.2f}s".format(toc-tic),
+                        "{:4.2f}s".format(tac-toc))
 
                 # jz TODO visdom is disabled
                 # if _iter % 10 == 0:
@@ -155,9 +161,17 @@ class TreeGAN():
                 #                       opts={'title': "Frechet Pointcloud Distance", 'legend': ["{} / FPD best : {:.6f}".format(np.argmin(metric['FPD']), np.min(metric['FPD']))]})
 
                 #     print('Figures are saved.')
+            # ---------------- Epoch everage loss   --------------- #
+            d_loss_mean = np.array(epoch_d_loss).mean()
+            g_loss_mean = np.array(epoch_g_loss).mean()
             
+            print("[Epoch] ", "{:3}".format(epoch),
+                "[ D_Loss ] ", "{: 7.6f}".format(d_loss_mean), 
+                "[ G_Loss ] ", "{: 7.6f}".format(g_loss_mean), 
+                "[ Time ] ", "{:.2f}s".format(time.time()-epoch_time))
+            epoch_time = time.time()
             # ---------------- Frechet Pointcloud Distance --------------- #
-            if epoch % 1 == 0 and not result_path == None:
+            if epoch % 10 == 0 and not result_path == None:
                 fake_pointclouds = torch.Tensor([])
                 # jz, adjust for different batch size
                 test_batch_num = int(5000/self.args.batch_size)
@@ -170,7 +184,7 @@ class TreeGAN():
 
                 fpd = calculate_fpd(fake_pointclouds, statistic_save_path=self.args.FPD_path, batch_size=100, dims=1808, device=self.args.device)
                 metric['FPD'].append(fpd)
-                print('[{:4} Epoch] Frechet Pointcloud Distance <<< {:.10f} >>>'.format(epoch, fpd))
+                print('[{:4} Epoch] Frechet Pointcloud Distance <<< {:.4f} >>>'.format(epoch, fpd))
 
                 class_name = args.class_choice if args.class_choice is not None else 'all'
                 torch.save(fake_pointclouds, result_path+str(epoch)+'_'+class_name+'.pt')
@@ -187,7 +201,7 @@ class TreeGAN():
                         'FPD': metric['FPD']
                 }, save_ckpt+str(epoch)+'_'+class_name+'.pt')
 
-                print('Checkpoint is saved.')
+                # print('Checkpoint is saved.')
             
                 
                     

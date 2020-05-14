@@ -25,7 +25,7 @@ srun -u --partition=Sensetime -n1 --gres=gpu:4 --ntasks-per-node=1 -x SG-IDC1-10
 
 srun -u --partition=Sensetime -n1 --gres=gpu:4 --ntasks-per-node=1 -x SG-IDC1-10-51-0-34 \
         python train.py \
-        --class_choice Airplane --epochs 80 \
+        --class_choice Chair --epochs 80 \
         --load_ckpt /mnt/lustre/zhangjunzhe/TreeGAN/model/checkpoints/tree_ckpt_19_Airplane.pt
 
 
