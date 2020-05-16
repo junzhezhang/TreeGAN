@@ -191,7 +191,7 @@ class TreeGAN():
                 del fake_pointclouds
 
             # ---------------------- Save checkpoint --------------------- #
-            if epoch % 1 == 0 and not save_ckpt == None:
+            if epoch % 5 == 0 and not save_ckpt == None:
                 torch.save({
                         'epoch': epoch,
                         'D_state_dict': self.D.state_dict(),
