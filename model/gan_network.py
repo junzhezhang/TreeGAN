@@ -19,20 +19,20 @@ class Discriminator(nn.Module):
         self.leaky_relu = nn.LeakyReLU(negative_slope=0.2)
         #jz below code got problem, linearity, and final sigmoid,  
         #jz TODO final softmax/sigmoid needed?
-        self.final_layer = nn.Sequential(nn.Linear(features[-1], features[-1]),
-                                         nn.Linear(features[-1], features[-2]),
-                                         nn.Linear(features[-2], features[-2]),
-                                         nn.Linear(features[-2], 1))
+        # self.final_layer = nn.Sequential(nn.Linear(features[-1], features[-1]),
+        #                                  nn.Linear(features[-1], features[-2]),
+        #                                  nn.Linear(features[-2], features[-2]),
+        #                                  nn.Linear(features[-2], 1))
         
         # follow the r-GAN discriminator
         # jz NOTE below got Sigmoid function
-        # self.final_layer = nn.Sequential(
-        #             nn.Linear(features[-1], 128),
-        #             nn.LeakyReLU(negative_slope=0.2),
-        #             nn.Linear(128, 64),
-        #             nn.LeakyReLU(negative_slope=0.2),
-        #             nn.Linear(64, 1),
-        #             nn.Sigmoid())
+        self.final_layer = nn.Sequential(
+                    nn.Linear(features[-1], 128),
+                    nn.LeakyReLU(negative_slope=0.2),
+                    nn.Linear(128, 64),
+                    nn.LeakyReLU(negative_slope=0.2),
+                    nn.Linear(64, 1),
+                    nn.Sigmoid())
 
     def forward(self, f):
         
