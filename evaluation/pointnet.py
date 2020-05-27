@@ -96,7 +96,7 @@ class PointNetCls(nn.Module):
         x4 = self.fc3(x3)
         
         actv = torch.cat((x1, x2, x3, x4), dim=1)
-        
+        # import pdb; pdb.set_trace()
         return F.log_softmax(x4, dim=0), trans, actv
 
 class PointNetDenseCls(nn.Module):

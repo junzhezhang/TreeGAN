@@ -17,10 +17,10 @@ class Arguments:
         self._parser.add_argument('--epochs', type=int, default=2, help='Integer value for epochs.')
         self._parser.add_argument('--lr', type=float, default=1e-4, help='Float value for learning rate.')
         #jz NOTE if do grid search, need to specify the ckpt_path and ckpt_save.
-        self._parser.add_argument('--ckpt_path', type=str, default='./model/checkpoints17/', help='Checkpoint path.')
+        self._parser.add_argument('--ckpt_path', type=str, default='./model/checkpoints2/', help='Checkpoint path.')
         self._parser.add_argument('--ckpt_save', type=str, default='tree_ckpt_', help='Checkpoint name to save.')
         self._parser.add_argument('--ckpt_load', type=str, help='Checkpoint name to load. (default:None)')
-        self._parser.add_argument('--result_path', type=str, default='./model/generated17/', help='Generated results path.')
+        self._parser.add_argument('--result_path', type=str, default='./model/generated2/', help='Generated results path.')
         self._parser.add_argument('--result_save', type=str, default='tree_pc_', help='Generated results name to save.')
         self._parser.add_argument('--visdom_port', type=int, default=8097, help='Visdom port number. (default:8097)')
         self._parser.add_argument('--visdom_color', type=int, default=4, help='Number of colors for visdom pointcloud visualization. (default:4)')
@@ -33,9 +33,9 @@ class Arguments:
         self._parser.add_argument('--G_FEAT', type=int, default=[96, 256, 256, 256, 128, 128, 128, 3], nargs='+', help='Features for generator.')
         #jz default is default=[3,  64,  128, 256, 512, 1024]
         # for D in r-GAN
-        self._parser.add_argument('--D_FEAT', type=int, default=[3, 64,  128, 256, 256, 512], nargs='+', help='Features for discriminator.')
+        # self._parser.add_argument('--D_FEAT', type=int, default=[3, 64,  128, 256, 256, 512], nargs='+', help='Features for discriminator.')
         # for D in source code
-        # self._parser.add_argument('--D_FEAT', type=int, default=[3,  64,  128, 256, 512, 1024], nargs='+', help='Features for discriminator.')
+        self._parser.add_argument('--D_FEAT', type=int, default=[3,  64,  128, 256, 512, 1024], nargs='+', help='Features for discriminator.')
         # Evaluation arguments
         self._parser.add_argument('--FPD_path', type=str, default='./evaluation/pre_statistics_chair.npz', help='Statistics file path to evaluate FPD metric. (default:all_class)')
 

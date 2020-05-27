@@ -109,7 +109,7 @@ def calculate_frechet_distance(mu1, sigma1, mu2, sigma2, eps=1e-6):
         'Training and test covariances have different dimensions'
 
     diff = mu1 - mu2
-
+    import pdb; pdb.set_trace()
     # Product might be almost singular
     covmean, _ = sqrtm(sigma1.dot(sigma2), disp=False)
     if not np.isfinite(covmean).all():

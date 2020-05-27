@@ -24,7 +24,7 @@ class Discriminator(nn.Module):
         #                                  nn.Linear(features[-2], features[-2]),
         #                                  nn.Linear(features[-2], 1))
         
-        # follow the r-GAN discriminator
+        # follow the r-GAN discriminator, just not very sure if got leaky relu right before sigmoid.
         # jz NOTE below got Sigmoid function
         self.final_layer = nn.Sequential(
                     nn.Linear(features[-1], 128),
@@ -85,4 +85,4 @@ class Generator(nn.Module):
         return self.pointcloud
 
     def getPointcloud(self):
-        return self.pointcloud[-1]
+        return self.pointcloud[-1] # return a single point cloud (2048,3)
