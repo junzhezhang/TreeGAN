@@ -19,7 +19,8 @@ class TreeGAN():
         # ------------------------------------------------Dataset---------------------------------------------- #
         #jz default unifrom=True
         self.data = BenchmarkDataset(root=args.dataset_path, npoints=args.point_num, uniform=None, class_choice=args.class_choice)
-        self.dataLoader = torch.utils.data.DataLoader(self.data, batch_size=args.batch_size, shuffle=True, pin_memory=True, num_workers=4)
+        # TODO num workers to change back to 4
+        self.dataLoader = torch.utils.data.DataLoader(self.data, batch_size=args.batch_size, shuffle=True, pin_memory=True, num_workers=10)
         print("Training Dataset : {} prepared.".format(len(self.data)))
         # ----------------------------------------------------------------------------------------------------- #
 
@@ -135,7 +136,7 @@ class TreeGAN():
                 epoch_g_loss.append(g_loss.item())
                 tac = time.time()
                 # --------------------- Visualization -------------------- #
-                verbose = None
+                verbose = True
                 if verbose is not None:
                     print("[Epoch/Iter] ", "{:3} / {:3}".format(epoch, _iter),
                         "[ D_Loss ] ", "{: 7.6f}".format(d_loss), 

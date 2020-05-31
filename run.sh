@@ -34,6 +34,19 @@ srun -u --partition=Sensetime -n1 --gres=gpu:1 --ntasks-per-node=1 -x SG-IDC1-10
         python train.py \
         --class_choice None --epochs 2000 \   
 
+# test input data
+srun -u --partition=Sensetime -n1 --gres=gpu:1 --ntasks-per-node=1 -x SG-IDC1-10-51-0-30 \
+        --job-name=eval_g \
+        python test_input_data.py 
+
+srun -u --partition=Sensetime -n1 --gres=gpu:2 --ntasks-per-node=4 -w SG-IDC1-10-51-0-42 \
+        --job-name=tg2_big \
+        python train.py \
+        --class_choice Chair --epochs 1 \
+        --FPD_path ./evaluation/pre_statistics_chair.npz 
+        # --ckpt_path ./model/checkpoints2/
+
+
 # eval sampple 
 srun -u --partition=Sensetime -n1 --gres=gpu:1 --ntasks-per-node=1 -x SG-IDC1-10-51-0-30 \
         --job-name=eval_g \
@@ -56,7 +69,14 @@ srun -u --partition=Sensetime -n1 --gres=gpu:1 --ntasks-per-node=1 -x SG-IDC1-10
         --save_num_generated 500 \
         --save_generated_dir ./gen_to_delete \
         --model_pathname ./model/checkpoints18/tree_ckpt_1660_Chair.pt \
-        --num_samples 100
+        --num_samples 5000
+
+# train CGAN:
+srun -u --partition=Sensetime -n1 --gres=gpu:8 --ntasks-per-node=1 -x SG-IDC1-10-51-0-34 \
+        --job-name=tg_all \
+        python train_cgan.py \
+        --class_choice None --epochs 2000   --batch_size 64 
+
 
 
 # tg_chair script, on 430pm May 14 (batch 64)
@@ -107,7 +127,7 @@ srun -u --partition=Sensetime -n1 --gres=gpu:4 --ntasks-per-node=1 -x SG-IDC1-10
 srun -u --partition=Sensetime -n1 --gres=gpu:4 --ntasks-per-node=1 -x SG-IDC1-10-51-0-34 \
         --job-name=tg_all \
         python train.py \
-        --class_choice None --epochs 2000   --batch_size 20                
+        --class_choice None --epochs 2000   --batch_size 64                
 
 # tg_sofa ( actually it is table)
 srun -u --partition=Sensetime -n1 --gres=gpu:4 --ntasks-per-node=1 -x SG-IDC1-10-51-0-34 \

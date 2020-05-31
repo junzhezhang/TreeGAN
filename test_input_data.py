@@ -1,9 +1,17 @@
+"""
+The goal of this file is to:
+* check number of points in the raw input
+* visualize the sampled points, say 100
+
+"""
+
 from __future__ import print_function
 import torch.utils.data as data
 import os
 import os.path
 import torch
 import numpy as np
+from arguments import Arguments
 
 class BenchmarkDataset(data.Dataset):
     #jz default classification=False
@@ -18,10 +26,10 @@ class BenchmarkDataset(data.Dataset):
 
         
         #jz: if None, just all cat; if not None, just a single cat
-        with open(self.catfile, 'r') as f:
-            for line in f:
-                ls = line.strip().split()
-                self.cat[ls[0]] = ls[1]
+        # with open(self.catfile, 'r') as f:
+        #     for line in f:
+        #         ls = line.strip().split()
+        #         self.cat[ls[0]] = ls[1]
         # import pdb; pdb.set_trace()
 
         #jz input 'None' is str
@@ -59,25 +67,22 @@ class BenchmarkDataset(data.Dataset):
                 if l > self.num_seg_classes:
                     self.num_seg_classes = l
 
+    # def get_num_points(self, index):
+
     def __getitem__(self, index):
         fn = self.datapath[index]
         cls = self.classes[self.datapath[index][0]]
         point_set = np.loadtxt(fn[1]).astype(np.float32)
         seg = np.loadtxt(fn[2]).astype(np.int64)
-        # print('num points,',point_set.shape[0])
+        self.num_points_list.append(point_set.shape[0])
         if self.uniform:
             choice = np.loadtxt(fn[3]).astype(np.int64)
             assert len(choice) == self.npoints, "Need to match number of choice(2048) with number of vertices."
         else:
             choice = np.random.randint(0, len(seg), size=self.npoints)
-        if not os.path.isdir('gt_pointsets'):
-            os.mkdir('gt_pointsets')
-        np.savetxt(os.path.join('gt_pointsets',str(index)+'_gt_orgin.txt'),point_set,fmt = "%f;%f;%f")
-        
+
         point_set = point_set[choice]
         seg = seg[choice]
-        
-        np.savetxt(os.path.join('gt_pointsets',str(index)+'_gt_2048.txt'),point_set,fmt = "%f;%f;%f")
 
         point_set = torch.from_numpy(point_set)
         seg = torch.from_numpy(seg)
@@ -89,3 +94,17 @@ class BenchmarkDataset(data.Dataset):
 
     def __len__(self):
         return len(self.datapath)
+
+
+
+### test scrip
+print('start runing')
+args = Arguments().parser().parse_args()
+
+args.device = torch.device('cuda:'+str(args.gpu) if torch.cuda.is_available() else 'cpu')
+torch.cuda.set_device(args.device)
+data = BenchmarkDataset(root=args.dataset_path, npoints=args.point_num, uniform=None, class_choice='Chair')
+for i in range(10):
+    data.__getitem__()
+print(len(data.num_points_list))
+print(data.num_points_list)

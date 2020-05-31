@@ -17,6 +17,8 @@ from model.gan_network import Generator, Discriminator
 from model.gradient_penalty import GradientPenalty
 from evaluation.FPD import calculate_fpd
 
+from metrics import *
+
 from evaluation.pointnet import PointNetCls
 
 # from arguments import Arguments
@@ -85,26 +87,71 @@ G.eval()
 fake_pointclouds = torch.Tensor([])
 # jz, adjust for different batch size
 test_batch_num = int(opt.num_samples/opt.batch_size)
+print ('test_batch_num, num_samples, batch_size:', test_batch_num,opt.num_samples,opt.batch_size)
 for i in range(test_batch_num): # For 5000 samples
     z = torch.randn(opt.batch_size, 1, 96).to(opt.device)
     tree = [z]
     with torch.no_grad():
         sample = G(tree).cpu()
     fake_pointclouds = torch.cat((fake_pointclouds, sample), dim=0)
-
-
+print ('sample_pcs',fake_pointclouds.shape)
+### fpd
 # import pdb; pdb.set_trace()
-fpd = calculate_fpd(fake_pointclouds, statistic_save_path=opt.FPD_path, batch_size=100, dims=1808, device=opt.device)
-# # metric['FPD'].append(fpd)
-print('Frechet Pointcloud Distance <<< {:.4f} >>>'.format(fpd))
+# fpd = calculate_fpd(fake_pointclouds, statistic_save_path=opt.FPD_path, batch_size=100, dims=1808, device=opt.device)
+# # # metric['FPD'].append(fpd)
+# print('Frechet Pointcloud Distance <<< {:.4f} >>>'.format(fpd))
+
+### Section save point cloud
+# pointclouds_to_save = fake_pointclouds.numpy()[:opt.save_num_generated]
+# save_pointcloud_to_txt(pointclouds_to_save,opt.save_generated_dir)
+# print ('saved point clouds')
+
+###
+# get point clouds for a particular data
+gt_dataset = BenchmarkDataset(root=opt.dataset_path, npoints=2048, uniform=None, class_choice=opt.class_choice)
+dataLoader = torch.utils.data.DataLoader(gt_dataset, batch_size=opt.batch_size, shuffle=True, pin_memory=True, num_workers=10)
+gt_data_list = []
+for _iter, data in enumerate(dataLoader):
+    point, _  = data
+    gt_data_list.append(point)
+
+ref_pcs = torch.cat(gt_data_list,0).detach().cpu().numpy()
+sample_pcs = fake_pointclouds.detach().cpu().numpy()
+# ref_pcs = torch.stack(gt_data_list).detach().cpu().numpy()
+print ('shape of generated data and ref_pcs,',fake_pointclouds.shape, ref_pcs.shape)
+
+# # jsd = jsd_between_point_cloud_sets(sample_pcs, ref_pcs, resolution=28)
+# jsd1 = jsd_between_point_cloud_sets(sample_pcs, ref_pcs, resolution=28)
+# jsd2 = jsd_between_point_cloud_sets(ref_pcs[:3000], ref_pcs, resolution=28)
+# jsd3 = jsd_between_point_cloud_sets(sample_pcs[:2000], ref_pcs[-1000:], resolution=28)
+# print ('jsd1, 2, 3', jsd1, jsd2, jsd3)
+# # jsd1, 2, 3 0.11505738867010251 0.0002315239257608681 0.1166695618494149  
 
 
-pointclouds_to_save = fake_pointclouds.numpy()[:opt.save_num_generated]
-save_pointcloud_to_txt(pointclouds_to_save,opt.save_generated_dir)
-print ('saved point clouds')
+ae_loss = 'chamfer'  # Which distance to use for the matchings.
+ae_loss = 'emd'  # Which distance to use for the matchings.
 
-# class_name = args.class_choice if args.class_choice is not None else 'all'
-# torch.save(fake_pointclouds, result_path+str(epoch)+'_'+class_name+'.pt')
+if ae_loss == 'emd':
+    use_EMD = True
+else:
+    use_EMD = False  # Will use Chamfer instead.
+    
+batch_size = 100     # Find appropriate number that fits in GPU.
+normalize = True     # Matched distances are divided by the number of 
+                     # points of thepoint-clouds.
+
+mmd, matched_dists = minimum_mathing_distance(sample_pcs[:20], ref_pcs[:20], batch_size, normalize=normalize, use_EMD=use_EMD)
+print ('samp vs ref',mmd, matched_dists)
+mmd, matched_dists = minimum_mathing_distance(ref_pcs[:15], ref_pcs[:20], batch_size, normalize=normalize, use_EMD=use_EMD)
+print ('ref vs ref',mmd, matched_dists)
+# MMD for 100 vs 100, 800s, very slow!!
+# samp vs ref 0.0020890734 
+
+# cov, matched_loc, matched_dist = coverage(sample_pcs[:100], ref_pcs[:100], batch_size, normalize=normalize, use_EMD=use_EMD)
+# print ('samp vs ref',cov,matched_loc, matched_dist)
+# # cov, matched_loc, matched_dist = coverage(ref_pcs[:18], ref_pcs[:20], batch_size, normalize=normalize, use_EMD=use_EMD)
+# # print ('ref vs ref',cov,matched_loc, matched_dist)
+
 del fake_pointclouds
 toc = time.time()
 print('time spent is',int(toc-tic))

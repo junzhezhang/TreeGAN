@@ -16,7 +16,7 @@ class GradientPenalty:
         self.vertex_num = vertex_num
         self.device = device
 
-    def __call__(self, netD, real_data, fake_data):
+    def __call__(self, netD, real_data, fake_data, conditional=False, yreal=None):
         batch_size = real_data.size(0)
         #jz NOTE not shuffled when comparing the real and fake, hence, no need to generate more fake data
         fake_data = fake_data[:batch_size]
@@ -25,8 +25,12 @@ class GradientPenalty:
         # randomly mix real and fake data
         interpolates = real_data + alpha * (fake_data - real_data)
         # compute output of D for interpolated input
-        disc_interpolates = netD(interpolates)
+        if not conditional:
+            disc_interpolates = netD(interpolates)
         # compute gradients w.r.t the interpolated outputs
+        else:
+            # ref link: https://github.com/yet-another-account/wgan-gp-conditional/blob/master/wgangp.py
+            disc_interpolates = netD(interpolates,yreal)
         
         gradients = grad(outputs=disc_interpolates, inputs=interpolates,
                          grad_outputs=torch.ones(disc_interpolates.size()).to(self.device),
