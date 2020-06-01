@@ -14,13 +14,14 @@ import torch.optim as optim
 
 from data.dataset_benchmark import BenchmarkDataset
 from model.gan_network import Generator, Discriminator
+from train_cgan import ConditionalGenerator_v0
 from model.gradient_penalty import GradientPenalty
 from evaluation.FPD import calculate_fpd
 
 from metrics import *
 
 from evaluation.pointnet import PointNetCls
-
+from math import ceil
 # from arguments import Arguments
 import argparse
 import time
@@ -30,29 +31,137 @@ import time
 import os.path as osp
 import os
 
-def EMD():
-    raise NotImplementedError("Not implemented yet!!!")
+def count_shapenet_v0():
+    root_dir = '/mnt/lustre/share/zhangjunzhe/shapenetcore_partanno_segmentation_benchmark_v0'
+    catfile = './data/synsetoffset2category.txt'
+    class2dir_dict = {}
+    with open(catfile, 'r') as f:
+        for line in f:
+            ls = line.strip().split()
+            class2dir_dict[ls[0]] = ls[1]
+    class2id_dict = {'Airplane': 0, 'Bag': 1, 'Cap': 2, 'Car': 3, 'Chair': 4, 
+    'Earphone': 5, 'Guitar': 6,  'Knife': 7, 'Lamp': 8, 'Laptop': 9, 
+    'Motorbike': 10, 'Mug': 11, 'Pistol': 12, 'Rocket': 13, 'Skateboard': 14, 'Table': 15}   
+    count_list = [0] * 16
+    class2cnt_dict = {}
+    print(class2dir_dict)
+    print(class2id_dict)
+    for class_name, id in class2id_dict.items():
+        dir_point = os.path.join(root_dir, class2dir_dict[class_name], 'points')
+        fns = os.listdir(dir_point)
+        count_list[id] = len(fns)
+        class2cnt_dict[class_name] = len(fns)
+    print(class2cnt_dict)
+    print(np.sum(count_list))
+    return count_list
 
-def CD():
-    raise NotImplementedError("Not implemented yet!!!")
 
-def JSD():
-    raise NotImplementedError("Not implemented yet!!!")
-
-def MMD():
-    raise NotImplementedError("Not implemented yet!!!")
-
-def Coverage():
-    raise NotImplementedError("Not implemented yet!!!")
-
-def save_pointcloud_to_txt(batch_numpy,save_dir):
-    batch_size = batch_numpy.shape[0]
+def save_pcs_to_txt(save_dir, fake_pcs, labels=None):
+    sample_size = fake_pcs.shape[0]
     if not osp.isdir(save_dir):
         os.mkdir(save_dir)
-    for i in range(batch_size):
-       np.savetxt(osp.join(save_dir,str(i)+'.txt'), batch_numpy[i], fmt = "%f;%f;%f")  
+    for i in range(sample_size):
+        if labels is None:
+            np.savetxt(osp.join(save_dir,str(i)+'.txt'), fake_pcs[i], fmt = "%f;%f;%f")  
+        else:
+            np.savetxt(osp.join(save_dir,str(i)+'_'+str(labels[i])+'.txt'), fake_pcs[i], fmt = "%f;%f;%f") 
 
+def generate_pcs(model_cuda, n_pcs=5000, batch_size=64, n_classes=1,ratio=None, conditional=False,device=None):
+    # import pdb; pdb.set_trace()
+    fake_pcs = torch.Tensor([])
+    all_gen_labels = torch.Tensor([])
+    n_pcs = int(ceil(n_pcs/batch_size) * batch_size)
+    n_batches = ceil(n_pcs/batch_size)
+    if not conditional:
+    # if n_classes == 1 or ratio is None:
+        for i in range(n_batches):
+            z = torch.randn(opt.batch_size, 1, 96).to(device)
+            tree = [z]
+            with torch.no_grad():
+                sample = model_cuda(tree).cpu()
+            fake_pcs = torch.cat((fake_pcs, sample), dim=0)
+    elif conditional and ratio is None:
+        for i in range(n_batches):
+            # import pdb; pdb.set_trace()
+            z = torch.randn(batch_size, 1, 96).to(device)
+            gen_labels = torch.from_numpy(np.random.randint(0, opt.n_classes, batch_size).reshape(-1,1)).to(device)
+            all_gen_labels.cat((all_gen_labels,gen_labels),0)
+            gen_labels_onehot = torch.FloatTensor(batch_size, opt.n_classes).to(device)
+            gen_labels_onehot.zero_()
+            gen_labels_onehot.scatter_(1, gen_labels, 1)
+            gen_labels_onehot.unsqueeze_(1)
+            tree = [z]
+            with torch.no_grad():
+                sample = model_cuda(tree,gen_labels_onehot).cpu()
+            fake_pcs = torch.cat((fake_pcs, sample), dim=0)
+    else:
+        # n_pcs = 300
+        # NOTE: due to non-whole batch resulting issue in some models, round up n_pcs
+        
+        # got ratio, assume which is a list of counts from the training data
+        print (n_pcs)
+        # ratio = [10] *14
+        # ratio = [200, 300] + ratio
+        ratio = count_shapenet_v0()
+        print (ratio)
+        ratio_nm = np.array(ratio)/np.sum(ratio)
+        print (ratio_nm)
+        ratio_cnt = ratio_nm * n_pcs
+        # just check all chair scenario 
+        # ratio_cnt = [0] * 4 + [5056] + [0] * 11
+        print (ratio_cnt)
+        all_gen_labels = torch.zeros(n_pcs).type(torch.LongTensor).reshape(-1,1)
+        # NOTE due to some r is not int, there might be last a few all_gen_labels value remain at 0.
+        # TODO to shuffle the tensor
+        pointer = 0
+        for i, r in enumerate(ratio_cnt):
+            all_gen_labels[pointer:(pointer+int(r))] = int(i)
+            pointer+=int(r)
+        # print(all_gen_labels)
+        for i in range(n_batches):
+            # import pdb; pdb.set_trace()
+            z = torch.randn(batch_size, 1, 96).to(device)
+            gen_labels = all_gen_labels[i*batch_size:(i+1)*batch_size].reshape(-1,1).to(device)
+            # print(gen_labels.dtype)
+            gen_labels_onehot = torch.FloatTensor(batch_size, opt.n_classes).to(device)
+            gen_labels_onehot.zero_()
+            gen_labels_onehot.scatter_(1, gen_labels, 1)
+            gen_labels_onehot.unsqueeze_(1)
+            tree = [z]
+            with torch.no_grad():
+                sample = model_cuda(tree,gen_labels_onehot).cpu()
+            fake_pcs = torch.cat((fake_pcs, sample), dim=0)
 
+    return fake_pcs, all_gen_labels
+
+def FPD(opt,save_gen=False):
+    '''
+    NOTE: model is of a certain class now
+    args needed: 
+        n_classes, pcs to generate, ratio of each class, class to id dict???
+        model pth, , points to save, save pth, npz for the class, 
+    '''
+    # print(' in FPD')
+    if not opt.conditional:
+        G_net = Generator(batch_size=opt.batch_size, features=opt.G_FEAT, degrees=opt.DEGREE, support=opt.support).to(device)
+    else:
+        G_net = ConditionalGenerator_v0(batch_size=opt.batch_size, features=opt.G_FEAT, degrees=opt.DEGREE, support=opt.support, n_classes=opt.n_classes).to(opt.device)
+    checkpoint = torch.load(opt.model_pathname, map_location=device)
+    G_net.load_state_dict(checkpoint['G_state_dict'])
+    G_net.eval()
+    # compute ratio 
+    # if not conditional, labels are dummy
+    fake_pcs, labels = generate_pcs(G_net, n_pcs = opt.num_samples, batch_size = opt.batch_size, conditional=opt.conditional, device=opt.device, ratio = True)
+    print('fake_pcs shape,',fake_pcs.shape)
+
+    if save_gen:
+        save_pcs_to_txt(opt.gen_path, fake_pcs, labels=labels)
+    # TODO check all-chair only scenario
+    # opt.FPD_path = './evaluation/pre_statistics_chair.npz'
+    fpd = calculate_fpd(fake_pcs, statistic_save_path=opt.FPD_path, batch_size=100, dims=1808, device=opt.device)
+    print('Frechet Pointcloud Distance <<< {:.4f} >>>'.format(fpd))
+    
+    return fpd
 
 
 
@@ -70,31 +179,49 @@ parser.add_argument('--DEGREE', type=int, default=[1,  2,   2,   2,   2,   2,   
 parser.add_argument('--G_FEAT', type=int, default=[96, 256, 256, 256, 128, 128, 128, 3], nargs='+', help='Features for generator.')
 parser.add_argument('--batch_size', type=int, default=64, help='Integer value for batch size.')
 parser.add_argument('--save_num_generated', type=int,default=100, help ='number of point clouds to be saved')
-parser.add_argument('--save_generated_dir',required=True,help='dir to save generated point clouds')      
+parser.add_argument('--gen_path',required=True,help='dir to save generated point clouds')   
+# parser.add_argument('--conditional',type=int, required=True, help='1 is conditional , 0 is false')   
+parser.add_argument('--conditional', default=False, type=lambda x: (str(x).lower() == 'true'))  
+parser.add_argument('--n_classes',type=int, default=16)
+parser.add_argument('--conditional_ratio',default=True, type=lambda x: (str(x).lower() == 'false'))
+
 opt = parser.parse_args()
-print(opt)
-
-tic  = time.time()
 device = torch.device('cuda')
-
 opt.device = device
+print(opt)
+print(opt.conditional,type(opt.conditional))
+print(opt.conditional_ratio,type(opt.conditional_ratio))
+tic  = time.time()
 
-G = Generator(batch_size=opt.batch_size, features=opt.G_FEAT, degrees=opt.DEGREE, support=opt.support).to(device)
-checkpoint = torch.load(opt.model_pathname, map_location=device)
-G.load_state_dict(checkpoint['G_state_dict'])
-G.eval()
+fake_pcs = FPD(opt,save_gen=True)
+toc = time.time()
+print ('time spent and fake_pcs shape',int(toc-tic),fake_pcs.shape)
 
-fake_pointclouds = torch.Tensor([])
-# jz, adjust for different batch size
-test_batch_num = int(opt.num_samples/opt.batch_size)
-print ('test_batch_num, num_samples, batch_size:', test_batch_num,opt.num_samples,opt.batch_size)
-for i in range(test_batch_num): # For 5000 samples
-    z = torch.randn(opt.batch_size, 1, 96).to(opt.device)
-    tree = [z]
-    with torch.no_grad():
-        sample = G(tree).cpu()
-    fake_pointclouds = torch.cat((fake_pointclouds, sample), dim=0)
-print ('sample_pcs',fake_pointclouds.shape)
+# epoch_checkpoints = [1180, 5, 10, 25, 30, 15, 200, 500, 1000, 1200]
+# for epoch in epoch_checkpoints:
+#     tic = time.time()
+#     opt.model_pathname = './model/checkpoints18/tree_ckpt_'+str(epoch)+'_None.pt'
+#     opt.num_samples = 2000
+#     fpd_value = FPD(opt)
+#     toc = time.time()
+#     print ('--------------------time spent:',int(toc-tic),'|| epoch:',epoch,'|| FPD:',fpd_value)
+
+# G = Generator(batch_size=opt.batch_size, features=opt.G_FEAT, degrees=opt.DEGREE, support=opt.support).to(device)
+# checkpoint = torch.load(opt.model_pathname, map_location=device)
+# G.load_state_dict(checkpoint['G_state_dict'])
+# G.eval()
+
+# fake_pointclouds = torch.Tensor([])
+# # jz, adjust for different batch size
+# test_batch_num = int(opt.num_samples/opt.batch_size)
+# print ('test_batch_num, num_samples, batch_size:', test_batch_num,opt.num_samples,opt.batch_size)
+# for i in range(test_batch_num): # For 5000 samples
+#     z = torch.randn(opt.batch_size, 1, 96).to(opt.device)
+#     tree = [z]
+#     with torch.no_grad():
+#         sample = G(tree).cpu()
+#     fake_pointclouds = torch.cat((fake_pointclouds, sample), dim=0)
+# print ('sample_pcs',fake_pointclouds.shape)
 ### fpd
 # import pdb; pdb.set_trace()
 # fpd = calculate_fpd(fake_pointclouds, statistic_save_path=opt.FPD_path, batch_size=100, dims=1808, device=opt.device)
@@ -108,42 +235,42 @@ print ('sample_pcs',fake_pointclouds.shape)
 
 ###
 # get point clouds for a particular data
-gt_dataset = BenchmarkDataset(root=opt.dataset_path, npoints=2048, uniform=None, class_choice=opt.class_choice)
-dataLoader = torch.utils.data.DataLoader(gt_dataset, batch_size=opt.batch_size, shuffle=True, pin_memory=True, num_workers=10)
-gt_data_list = []
-for _iter, data in enumerate(dataLoader):
-    point, _  = data
-    gt_data_list.append(point)
+# gt_dataset = BenchmarkDataset(root=opt.dataset_path, npoints=2048, uniform=None, class_choice=opt.class_choice)
+# dataLoader = torch.utils.data.DataLoader(gt_dataset, batch_size=opt.batch_size, shuffle=True, pin_memory=True, num_workers=10)
+# gt_data_list = []
+# for _iter, data in enumerate(dataLoader):
+#     point, _  = data
+#     gt_data_list.append(point)
 
-ref_pcs = torch.cat(gt_data_list,0).detach().cpu().numpy()
-sample_pcs = fake_pointclouds.detach().cpu().numpy()
-# ref_pcs = torch.stack(gt_data_list).detach().cpu().numpy()
-print ('shape of generated data and ref_pcs,',fake_pointclouds.shape, ref_pcs.shape)
+# ref_pcs = torch.cat(gt_data_list,0).detach().cpu().numpy()
+# sample_pcs = fake_pointclouds.detach().cpu().numpy()
+# # ref_pcs = torch.stack(gt_data_list).detach().cpu().numpy()
+# print ('shape of generated data and ref_pcs,',fake_pointclouds.shape, ref_pcs.shape)
 
-# # jsd = jsd_between_point_cloud_sets(sample_pcs, ref_pcs, resolution=28)
-# jsd1 = jsd_between_point_cloud_sets(sample_pcs, ref_pcs, resolution=28)
-# jsd2 = jsd_between_point_cloud_sets(ref_pcs[:3000], ref_pcs, resolution=28)
-# jsd3 = jsd_between_point_cloud_sets(sample_pcs[:2000], ref_pcs[-1000:], resolution=28)
-# print ('jsd1, 2, 3', jsd1, jsd2, jsd3)
-# # jsd1, 2, 3 0.11505738867010251 0.0002315239257608681 0.1166695618494149  
+# # # jsd = jsd_between_point_cloud_sets(sample_pcs, ref_pcs, resolution=28)
+# # jsd1 = jsd_between_point_cloud_sets(sample_pcs, ref_pcs, resolution=28)
+# # jsd2 = jsd_between_point_cloud_sets(ref_pcs[:3000], ref_pcs, resolution=28)
+# # jsd3 = jsd_between_point_cloud_sets(sample_pcs[:2000], ref_pcs[-1000:], resolution=28)
+# # print ('jsd1, 2, 3', jsd1, jsd2, jsd3)
+# # # jsd1, 2, 3 0.11505738867010251 0.0002315239257608681 0.1166695618494149  
 
 
-ae_loss = 'chamfer'  # Which distance to use for the matchings.
-ae_loss = 'emd'  # Which distance to use for the matchings.
+# ae_loss = 'chamfer'  # Which distance to use for the matchings.
+# ae_loss = 'emd'  # Which distance to use for the matchings.
 
-if ae_loss == 'emd':
-    use_EMD = True
-else:
-    use_EMD = False  # Will use Chamfer instead.
+# if ae_loss == 'emd':
+#     use_EMD = True
+# else:
+#     use_EMD = False  # Will use Chamfer instead.
     
-batch_size = 100     # Find appropriate number that fits in GPU.
-normalize = True     # Matched distances are divided by the number of 
-                     # points of thepoint-clouds.
+# batch_size = 100     # Find appropriate number that fits in GPU.
+# normalize = True     # Matched distances are divided by the number of 
+#                      # points of thepoint-clouds.
 
-mmd, matched_dists = minimum_mathing_distance(sample_pcs[:20], ref_pcs[:20], batch_size, normalize=normalize, use_EMD=use_EMD)
-print ('samp vs ref',mmd, matched_dists)
-mmd, matched_dists = minimum_mathing_distance(ref_pcs[:15], ref_pcs[:20], batch_size, normalize=normalize, use_EMD=use_EMD)
-print ('ref vs ref',mmd, matched_dists)
+# mmd, matched_dists = minimum_mathing_distance(sample_pcs[:20], ref_pcs[:20], batch_size, normalize=normalize, use_EMD=use_EMD)
+# print ('samp vs ref',mmd, matched_dists)
+# mmd, matched_dists = minimum_mathing_distance(ref_pcs[:15], ref_pcs[:20], batch_size, normalize=normalize, use_EMD=use_EMD)
+# print ('ref vs ref',mmd, matched_dists)
 # MMD for 100 vs 100, 800s, very slow!!
 # samp vs ref 0.0020890734 
 
@@ -152,9 +279,9 @@ print ('ref vs ref',mmd, matched_dists)
 # # cov, matched_loc, matched_dist = coverage(ref_pcs[:18], ref_pcs[:20], batch_size, normalize=normalize, use_EMD=use_EMD)
 # # print ('ref vs ref',cov,matched_loc, matched_dist)
 
-del fake_pointclouds
-toc = time.time()
-print('time spent is',int(toc-tic))
+# del fake_pointclouds
+# toc = time.time()
+# print('time spent is',int(toc-tic))
 
 # ####
 # check point cloud tensor

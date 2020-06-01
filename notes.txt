@@ -3,6 +3,8 @@ CD implementation is from : https://github.com/chrdiller/pyTorchChamferDistance
 
 but got : RuntimeError: Ninja is required to load C++ extensions 
 
+{'Airplane': 0, 'Bag': 1, 'Cap': 2, 'Car': 3, 'Chair': 4, 'Earphone': 5, 'Guitar': 6, 'Knife': 7, 'Lamp': 8, 'Laptop': 9, 'Motorbike':│^Csrun: interrupt (abort already in progress)
+ 10, 'Mug': 11, 'Pistol': 12, 'Rocket': 13, 'Skateboard': 14, 'Table': 15}   
 
 # MMD for  100 vs 100
 samp vs ref 0.0020890734 [0.0038027102, 0.0049119564, 0.0018591785, 0.0019905246, 0.006838926, 0.004550738, 0.0023266436, 0│  04330267  04530566

@@ -33,11 +33,12 @@ class Arguments:
         self._parser.add_argument('--G_FEAT', type=int, default=[96, 256, 256, 256, 128, 128, 128, 3], nargs='+', help='Features for generator.')
         #jz default is default=[3,  64,  128, 256, 512, 1024]
         # for D in r-GAN
-        # self._parser.add_argument('--D_FEAT', type=int, default=[3, 64,  128, 256, 256, 512], nargs='+', help='Features for discriminator.')
+        self._parser.add_argument('--D_FEAT', type=int, default=[3, 64,  128, 256, 256, 512], nargs='+', help='Features for discriminator.')
         # for D in source code
-        self._parser.add_argument('--D_FEAT', type=int, default=[3,  64,  128, 256, 512, 1024], nargs='+', help='Features for discriminator.')
+        # self._parser.add_argument('--D_FEAT', type=int, default=[3,  64,  128, 256, 512, 1024], nargs='+', help='Features for discriminator.')
         # Evaluation arguments
         self._parser.add_argument('--FPD_path', type=str, default='./evaluation/pre_statistics_chair.npz', help='Statistics file path to evaluate FPD metric. (default:all_class)')
-
+        self._parser.add_argument('--ratio_base', type=int, default=500, help='# to select for each cat')
+        self._parser.add_argument('--dataset',type=str,default='BenchmarkDataset')
     def parser(self):
         return self._parser

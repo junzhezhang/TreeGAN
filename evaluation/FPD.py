@@ -195,7 +195,8 @@ def calculate_fpd(pointclouds1, pointclouds2=None, statistic_save_path=None, bat
         f = np.load(statistic_save_path)
         m2, s2 = f['m'][:], f['s'][:]
         f.close()
-        
+    # print ('m1,s1,m2,s2 shapes:',m1.shape,s1.shape,m2.shape,s2.shape)
+    # print ('m1,s1,m2,s2 values:',m1,s1,m2,s2)
     fid_value = calculate_frechet_distance(m1, s1, m2, s2)
 
     return fid_value

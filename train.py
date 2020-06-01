@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 
 from data.dataset_benchmark import BenchmarkDataset
+from datasets import ShapeNet_v0
 from model.gan_network import Generator, Discriminator
 from model.gradient_penalty import GradientPenalty
 from evaluation.FPD import calculate_fpd
@@ -18,7 +19,12 @@ class TreeGAN():
         self.args = args
         # ------------------------------------------------Dataset---------------------------------------------- #
         #jz default unifrom=True
-        self.data = BenchmarkDataset(root=args.dataset_path, npoints=args.point_num, uniform=None, class_choice=args.class_choice)
+        if args.dataset == 'ShapeNet_v0':
+            class_choice = ['Airplane','Car','Chair','Table']
+            ratio = [args.ratio_base] * 4
+            self.data = ShapeNet_v0(root=args.dataset_path, npoints=args.point_num, uniform=None, class_choice=class_choice,ratio=ratio)
+        else:
+            self.data = BenchmarkDataset(root=args.dataset_path, npoints=args.point_num, uniform=None, class_choice=args.class_choice)
         # TODO num workers to change back to 4
         self.dataLoader = torch.utils.data.DataLoader(self.data, batch_size=args.batch_size, shuffle=True, pin_memory=True, num_workers=10)
         print("Training Dataset : {} prepared.".format(len(self.data)))
@@ -86,6 +92,9 @@ class TreeGAN():
             epoch_d_loss = []
             epoch_time = time.time()
             for _iter, data in enumerate(self.dataLoader):
+                # TODO remove
+                # if _iter > 20:
+                #     break
                 # Start Time
                 start_time = time.time()
                 point, _ = data
@@ -136,7 +145,7 @@ class TreeGAN():
                 epoch_g_loss.append(g_loss.item())
                 tac = time.time()
                 # --------------------- Visualization -------------------- #
-                verbose = True
+                verbose = None
                 if verbose is not None:
                     print("[Epoch/Iter] ", "{:3} / {:3}".format(epoch, _iter),
                         "[ D_Loss ] ", "{: 7.6f}".format(d_loss), 
@@ -172,7 +181,7 @@ class TreeGAN():
                 "[ Time ] ", "{:.2f}s".format(time.time()-epoch_time))
             epoch_time = time.time()
             # ---------------- Frechet Pointcloud Distance --------------- #
-            if epoch % 10 == 0 and not result_path == None:
+            if epoch % 5 == 0 and not result_path == None:
                 fake_pointclouds = torch.Tensor([])
                 # jz, adjust for different batch size
                 test_batch_num = int(5000/self.args.batch_size)
@@ -188,7 +197,8 @@ class TreeGAN():
                 print('[{:4} Epoch] Frechet Pointcloud Distance <<< {:.4f} >>>'.format(epoch, fpd))
 
                 class_name = args.class_choice if args.class_choice is not None else 'all'
-                torch.save(fake_pointclouds, result_path+str(epoch)+'_'+class_name+'.pt')
+                # TODO
+                # torch.save(fake_pointclouds, result_path+str(epoch)+'_'+class_name+'.pt')
                 del fake_pointclouds
 
             # ---------------------- Save checkpoint --------------------- #

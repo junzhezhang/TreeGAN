@@ -12,6 +12,7 @@ import numpy as np
 import argparse
 
 from data.dataset_benchmark import BenchmarkDataset
+from datasets import ShapeNet_v0
 # from model.gan_network import Generator, Discriminator
 from model.gradient_penalty import GradientPenalty
 from evaluation.FPD import calculate_fpd
@@ -112,7 +113,11 @@ class ConditionalTreeGAN():
         self.opt = opt
         # ------------------------------------------------Dataset---------------------------------------------- #
         #jz default unifrom=True
-        self.data = BenchmarkDataset(root=opt.dataset_path, npoints=opt.point_num, uniform=None, class_choice=opt.class_choice)
+        # self.data = BenchmarkDataset(root=opt.dataset_path, npoints=opt.point_num, uniform=None, class_choice=opt.class_choice)
+        # TODO to refine here
+        class_choice = ['Airplane','Car','Chair','Table']
+        ratio = [500] * 4
+        self.data = ShapeNet_v0(root=opt.dataset_path, npoints=opt.point_num, uniform=None, class_choice=class_choice,ratio=ratio)
         # TODO num workers to change back to 4
         self.dataLoader = torch.utils.data.DataLoader(self.data, batch_size=opt.batch_size, shuffle=True, pin_memory=True, num_workers=16)
         print("Training Dataset : {} prepared.".format(len(self.data)))
@@ -132,6 +137,7 @@ class ConditionalTreeGAN():
         #jz TODO check if think can be speed up via multi-GPU
         self.GP = GradientPenalty(opt.lambdaGP, gamma=1, device=opt.device)
         print("Network prepared.")
+        # import pdb; pdb.set_trace()
     
     def run(self, save_ckpt=None, load_ckpt=None, result_path=None):
         
@@ -164,6 +170,9 @@ class ConditionalTreeGAN():
                 # Start Time
                 # if _iter < 270:
                 #     continue
+                # # TODO remove
+                # if _iter > 10:
+                #     break
                 
                 start_time = time.time()
                 point, labels = data
@@ -180,7 +189,9 @@ class ConditionalTreeGAN():
                 tic = time.time()
                 for d_iter in range(self.opt.D_iter):
                     self.D.zero_grad()
-                    
+                    # in tree-gan: normal distribution with mean 0, variance 1.
+                    # in r-gan: mean 0 , sigma 0.2. link https://github.com/optas/latent_3d_points/blob/master/notebooks/train_raw_gan.ipynb
+                    # in GCN GAN: sigma 0.2 https://github.com/diegovalsesia/GraphCNN-GAN/blob/master/gconv_up_aggr_code/main.py
                     z = torch.randn(labels.shape[0], 1, 96).to(self.opt.device)
                     gen_labels = torch.from_numpy(np.random.randint(0, opt.n_classes, labels.shape[0]).reshape(-1,1)).to(self.opt.device)
                     gen_labels_onehot = torch.FloatTensor(labels.shape[0], opt.n_classes).to(self.opt.device)
@@ -202,6 +213,7 @@ class ConditionalTreeGAN():
                     D_fake = self.D(fake_point,gen_labels_onehot)
                     D_fakem = D_fake.mean()
 
+                    # TODO try remove gp_loss and see how (tried, loss explode)
                     gp_loss = self.GP(self.D, point.data, fake_point.data, conditional=True, yreal=labels_onehot)
                     
                     d_loss = -D_realm + D_fakem
@@ -251,39 +263,41 @@ class ConditionalTreeGAN():
             g_loss_mean = np.array(epoch_g_loss).mean()
             
             print("[Epoch] ", "{:3}".format(epoch),
-                "[ D_Loss ] ", "{: 7.6f}".format(d_loss_mean), 
-                "[ G_Loss ] ", "{: 7.6f}".format(g_loss_mean), 
+                "[ D_Loss ] ", "{: 7.3f}".format(d_loss_mean), 
+                "[ G_Loss ] ", "{: 7.3f}".format(g_loss_mean), 
                 "[ Time ] ", "{:.2f}s".format(time.time()-epoch_time))
             epoch_time = time.time()
             # ---------------- Frechet Pointcloud Distance --------------- #
-            # if epoch % 1 == 0 and not result_path == None:
-            #     fake_pointclouds = torch.Tensor([])
-            #     # jz, adjust for different batch size
-            #     test_batch_num = int(5000/self.opt.batch_size)
-            #     for i in range(test_batch_num): # For 5000 samples
-            #         # print(i)
-            #         z = torch.randn(self.opt.batch_size, 1, 96).to(self.opt.device)
-            #         gen_labels = torch.from_numpy(np.random.randint(0, opt.n_classes, self.opt.batch_size).reshape(-1,1)).to(self.opt.device)
-            #         gen_labels_onehot = torch.FloatTensor(self.opt.batch_size, opt.n_classes).to(self.opt.device)
-            #         gen_labels_onehot.zero_()
-            #         gen_labels_onehot.scatter_(1, gen_labels, 1)
-            #         gen_labels_onehot.unsqueeze_(1)
-            #         tree = [z]
-            #         with torch.no_grad():
-            #             sample = self.G(tree,gen_labels_onehot).cpu()
-            #         fake_pointclouds = torch.cat((fake_pointclouds, sample), dim=0)
+            if epoch % 5 == 0 and not result_path == None:
+                fake_pointclouds = torch.Tensor([])
+                # jz, adjust for different batch size
+                # TODO change back to 5000
+                test_batch_num = int(2000/self.opt.batch_size)
+                for i in range(test_batch_num): # For 5000 samples
+                    # print(i)
+                    z = torch.randn(self.opt.batch_size, 1, 96).to(self.opt.device)
+                    gen_labels = torch.from_numpy(np.random.randint(0, opt.n_classes, self.opt.batch_size).reshape(-1,1)).to(self.opt.device)
+                    gen_labels_onehot = torch.FloatTensor(self.opt.batch_size, opt.n_classes).to(self.opt.device)
+                    gen_labels_onehot.zero_()
+                    gen_labels_onehot.scatter_(1, gen_labels, 1)
+                    gen_labels_onehot.unsqueeze_(1)
+                    tree = [z]
+                    with torch.no_grad():
+                        sample = self.G(tree,gen_labels_onehot).cpu()
+                    fake_pointclouds = torch.cat((fake_pointclouds, sample), dim=0)
 
-            #     fpd = calculate_fpd(fake_pointclouds, statistic_save_path=self.opt.FPD_path, batch_size=100, dims=1808, device=self.opt.device)
-            #     metric['FPD'].append(fpd)
-            #     print('[{:4} Epoch] Frechet Pointcloud Distance <<< {:.4f} >>>'.format(epoch, fpd))
+                fpd = calculate_fpd(fake_pointclouds, statistic_save_path=self.opt.FPD_path, batch_size=100, dims=1808, device=self.opt.device)
+                metric['FPD'].append(fpd)
+                print('-------------------------[{:4} Epoch] Frechet Pointcloud Distance <<< {:.2f} >>>'.format(epoch, fpd))
 
-            #     class_name = opt.class_choice if opt.class_choice is not None else 'all'
-            #     torch.save(fake_pointclouds, result_path+str(epoch)+'_'+class_name+'.pt')
-            #     del fake_pointclouds
+                class_name = opt.class_choice if opt.class_choice is not None else 'all'
+                # TODO to enable save fake points
+                # torch.save(fake_pointclouds, result_path+str(epoch)+'_'+class_name+'.pt')
+                del fake_pointclouds
 
             # ---------------------- Save checkpoint --------------------- #
             class_name = opt.class_choice if opt.class_choice is not None else 'all'
-            if epoch % 5 == 0 and not save_ckpt == None:
+            if epoch % 1 == 0 and not save_ckpt == None:
                 torch.save({
                         'epoch': epoch,
                         'D_state_dict': self.D.state_dict(),
@@ -343,7 +357,7 @@ if __name__ == '__main__':
     torch.cuda.set_device(opt.device)
 
     SAVE_CHECKPOINT = opt.ckpt_path + opt.ckpt_save if opt.ckpt_save is not None else None
-    LOAD_CHECKPOINT = opt.ckpt_path + opt.ckpt_load if opt.ckpt_load is not None else None
+    LOAD_CHECKPOINT = opt.ckpt_load if opt.ckpt_load is not None else None #NOTE: changed for more flexible loading
     RESULT_PATH = opt.result_path + opt.result_save
 
     model = ConditionalTreeGAN(opt)
