@@ -23,16 +23,30 @@ class ConditionalGenerator_v0(nn.Module):
     conditional GAN, ref: https://github.com/eriklindernoren/PyTorch-GAN/blob/master/implementations/cgan/cgan.py
     v0: only cat, do nothing
     '''
-    def __init__(self, batch_size, features, degrees, support, n_classes):
+    def __init__(self, batch_size, features, degrees, support, n_classes, version=0):
         super(ConditionalGenerator_v0, self).__init__()
         self.batch_size = batch_size
         self.layer_num = len(features)-1
+        self.version = version
         assert self.layer_num == len(degrees), "Number of features should be one more than number of degrees."
         # self.pointcloud = None
         vertex_num = 1
         self.gcn = nn.Sequential()
         # NOTE: for the first layer, add n_classes
         features[0]+= n_classes
+        # NOTE: v1 instead of directly cat and feed into the gcn. feed into a fc first
+        if self.version == 1 or self.version == 3:
+            self.fc = nn.Sequential(
+                nn.Linear(features[0], features[0]),
+                nn.LeakyReLU(negative_slope=0.2),
+            )
+        if self.version == 2 or self.version == 4:
+            self.fc = nn.Sequential(
+                nn.Linear(features[0], 256),
+                nn.LeakyReLU(negative_slope=0.2),
+                nn.Linear(256, features[0]),
+                nn.LeakyReLU(negative_slope=0.2),
+            )
 
         for inx in range(self.layer_num):
             #jz NOTE last layer activation False
@@ -50,7 +64,11 @@ class ConditionalGenerator_v0(nn.Module):
         # [torch.Size([64, 1, 96]), torch.Size([64, 1, 256]), torch.Size([64, 2, 256]), torch.Size([64, 4, 256]), 
         # torch.Size([64, 8, 128]), torch.Size([64, 16, 128]), torch.Size([64, 32, 128]), torch.Size([64, 2048, 3])]
         # import pdb; pdb.set_trace()
-        tree[0] = torch.cat((tree[0],labels),-1)
+        if self.version == 0:
+            tree[0] = torch.cat((tree[0],labels),-1)
+        else:
+            tree[0] = self.fc(torch.cat((tree[0],labels),-1))
+        
         feat = self.gcn(tree)
         
         self.pointcloud = feat[-1]
@@ -58,11 +76,12 @@ class ConditionalGenerator_v0(nn.Module):
         return self.pointcloud
 
 class ConditionalDiscriminator_v0(nn.Module):
-    def __init__(self, batch_size, features, n_classes):
+    def __init__(self, batch_size, features, n_classes,version=0):
         super(ConditionalDiscriminator_v0, self).__init__()
         # import pdb; pdb.set_trace()
         self.batch_size = batch_size
         self.layer_num = len(features)-1
+        self.version = version
 
         self.fc_layers = nn.ModuleList([])
         for inx in range(self.layer_num):
@@ -79,6 +98,20 @@ class ConditionalDiscriminator_v0(nn.Module):
         # follow the r-GAN discriminator, just not very sure if got leaky relu right before sigmoid.
         # jz NOTE below got Sigmoid function
         feat_dim = features[-1] + n_classes
+        # NOTE: v1 instead of directly cat and feed into the gcn. feed into a fc first
+        if self.version == 3:
+            self.fc = nn.Sequential(
+                nn.Linear(feat_dim, feat_dim),
+                nn.LeakyReLU(negative_slope=0.2),
+            )
+        if self.version == 4:
+            self.fc = nn.Sequential(
+                nn.Linear(feat_dim, 1024),
+                nn.LeakyReLU(negative_slope=0.2),
+                nn.Linear(1024, feat_dim),
+                nn.LeakyReLU(negative_slope=0.2),
+            )
+
         self.final_layer = nn.Sequential(
                     nn.Linear(feat_dim, 128),
                     nn.LeakyReLU(negative_slope=0.2),
@@ -101,7 +134,11 @@ class ConditionalDiscriminator_v0(nn.Module):
         out = F.max_pool1d(input=feat, kernel_size=vertex_num).squeeze(-1)
         
         # NOTE cat here
-        out = torch.cat((out,y.squeeze(1)),-1)
+        if self.version == 3 or self.version == 4:
+            out = torch.cat((out,y.squeeze(1)),-1)
+            out = self.fc(out)
+        else:
+            out = torch.cat((out,y.squeeze(1)),-1)
 
         # out (B,1)
         out = self.final_layer(out) # (B, 1)
@@ -124,7 +161,7 @@ class ConditionalTreeGAN():
         # ----------------------------------------------------------------------------------------------------- #
 
         # -------------------------------------------------Module---------------------------------------------- #
-        self.G = ConditionalGenerator_v0(batch_size=opt.batch_size, features=opt.G_FEAT, degrees=opt.DEGREE, support=opt.support, n_classes=opt.n_classes).to(opt.device)
+        self.G = ConditionalGenerator_v0(batch_size=opt.batch_size, features=opt.G_FEAT, degrees=opt.DEGREE, support=opt.support, n_classes=opt.n_classes, version=opt.version).to(opt.device)
         # import pdb; pdb.set_trace()
         #jz default features=0.5*opt.D_FEAT
         self.D = ConditionalDiscriminator_v0(batch_size=opt.batch_size, features=opt.D_FEAT, n_classes=opt.n_classes).to(opt.device)             
@@ -346,6 +383,7 @@ class Arguments:
         # Evaluation arguments
         self._parser.add_argument('--FPD_path', type=str, default='./evaluation/pre_statistics_chair.npz', help='Statistics file path to evaluate FPD metric. (default:all_class)')
         self._parser.add_argument('--n_classes',type=int, default=16)
+        self._parser.add_argument('--version', type=int, default=0)
 
     def parser(self):
         return self._parser

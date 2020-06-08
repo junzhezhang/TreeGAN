@@ -36,31 +36,94 @@ srun -u --partition=Sensetime -n1 --gres=gpu:2 --ntasks-per-node=4 -w SG-IDC1-10
         --FPD_path ./evaluation/pre_statistics_chair.npz 
         # --ckpt_path ./model/checkpoints2/
 
+# test EMD
+srun -u --partition=Sensetime -n1 --gres=gpu:1 --ntasks-per-node=1 -x SG-IDC1-10-51-0-30 \
+        --job-name=cd \
+        python example.py 
 
-# eval sampple 
+# eval rgan_chair#
+srun -u --partition=Sensetime -n1 --gres=gpu:1 --ntasks-per-node=1 -x SG-IDC1-10-51-0-30 \
+        --job-name=eval_fpd \
+        python eval_GAN.py \
+        --FPD_path ./evaluation/pre_statistics_4x500.npz \
+        --class_choice Chair \
+        --save_num_generated 2000 \
+        --gen_path ./gen_temp \
+        --model_path ./model/gen_cgan_v1 \
+        --conditional True \
+        --conditional_ratio True \
+        --n_classes 4 \
+        --version 1
+
+#v0
+srun -u --partition=Sensetime -n1 --gres=gpu:1 --ntasks-per-node=1 -x SG-IDC1-10-51-0-30 \
+        --job-name=eval_fpd \
+        python eval_GAN.py \
+        --FPD_path ./evaluation/pre_statistics_4x500.npz \
+        --class_choice Chair \
+        --save_num_generated 2000 \
+        --gen_path ./gen_temp \
+        --model_path ./model/gen_cgan_v0_4.5 \
+        --conditional True \
+        --conditional_ratio True \
+        --n_classes 4 \
+        --version 0
+# eval gan 4.5  gen_gan_4.5_2nd 
+srun -u --partition=Sensetime -n1 --gres=gpu:1 --ntasks-per-node=1 -x SG-IDC1-10-51-0-30 \
+        --job-name=eval_fpd \
+        python eval_GAN.py \
+        --FPD_path ./evaluation/pre_statistics_4x500.npz \
+        --class_choice Chair \
+        --save_num_generated 2000 \
+        --gen_path ./gen_temp \
+        --model_path ./model/gen_gan_4.1_2nd \
+        --n_classes 4 
+
+        --conditional True \
+        --conditional_ratio True \
+        
+        # --version 0
+
+# temp 2
+srun -u --partition=Sensetime -n1 --gres=gpu:1 --ntasks-per-node=1 -x SG-IDC1-10-51-0-30 \
+        --job-name=eval_fpd \
+        python eval_GAN.py \
+        --FPD_path ./evaluation/pre_statistics_4x500.npz \
+        --class_choice Chair \
+        --save_num_generated 2000 \
+        --save_gen True \
+        --gen_path ./gen_temp \
+        --model_path ./model/gen_cgan_v1 \
+        --conditional True \
+        --conditional_ratio True \
+        --n_classes 4 \
+        --version 1
+
+### temp
 srun -u --partition=Sensetime -n1 --gres=gpu:1 --ntasks-per-node=1 -x SG-IDC1-10-51-0-30 \
         --job-name=eval_g \
         python eval_GAN.py \
-        --FPD_path ./evaluation/pre_statistics_all.npz \
-        --class_choice None \
+        --FPD_path ./evaluation/pre_statistics_4x500.npz \
+        --class_choice Chair \
         --save_num_generated 500 \
-        --save_generated_dir ./gen_all \
-        --model_pathname ./model/checkpoints18/tree_ckpt_1180_None.pt 
-        \
-        --num_samples 100
-        /model/checkpoints/tree_ckpt_1340_None.pt 
+        --gen_path ./gen_temp \
+        --conditional True \
+        --n_classes 4 \
+        --model_pathname ./model/gen_cgan_v1/tree_ckpt_800_None.pt 
+
 # eval_cgan
 srun -u --partition=Sensetime -n1 --gres=gpu:1 --ntasks-per-node=1 -x SG-IDC1-10-51-0-30 \
         --job-name=eval_g \
         python eval_GAN.py \
-        --FPD_path ./evaluation/pre_statistics_chair.npz \
+        --FPD_path ./evaluation/pre_statistics_4x500.npz \
         --class_choice None \
         --save_num_generated 500 \
         --gen_path ./gen_cgan_v0 \
         --model_pathname ./model/checkpoints_cgan_v0/tree_ckpt_240_None.pt \
         --num_samples 100 \
         --conditional True \
-        --batch_size 50
+        --batch_size 50 \
+        --n_classes 4
 
 # eval chair
 srun -u --partition=Sensetime -n1 --gres=gpu:1 --ntasks-per-node=1 -x SG-IDC1-10-51-0-30 \
@@ -73,34 +136,113 @@ srun -u --partition=Sensetime -n1 --gres=gpu:1 --ntasks-per-node=1 -x SG-IDC1-10
         --model_pathname ./model/checkpoints18/tree_ckpt_1660_Chair.pt \
         --num_samples 5000
 
-# May 31, train cgan, 4.5
+# June 1, train cgan, 4.5
 srun -u --partition=Sensetime -n1 --gres=gpu:4 --ntasks-per-node=1 -x SG-IDC1-10-51-0-34 \
-        --job-name=cgv0_4.5 \
+        --job-name=ctgv0_4.5 \
         python train_cgan.py \
         --class_choice None --epochs 2000   --batch_size 64 \
-        --ckpt_path gen_cgan_v0_4.5 \
-        --FPD_path ./evaluation/pre_statistics_all.npz
-
+        --ckpt_path ./model/gen_cgan_v0_4.5/ \
+        --FPD_path ./evaluation/pre_statistics_all.npz \
+        --n_classes 4 
+        
         \
-        --ckpt_load ./model/checkpoints_cgan_v0/tree_ckpt_200_None.pt
+        --ckpt_load ./model/gen_cgan_v0_4.5/tree_ckpt_35_None.pt
 
-# May 31, train gan, 4 class 500, 
+# June 1, train cgan, 4.5 v1
+srun -u --partition=Sensetime -n1 --gres=gpu:4 --ntasks-per-node=1 -x SG-IDC1-10-51-0-34 \
+        --job-name=ctg_v1 \
+        python train_cgan.py \
+        --class_choice None --epochs 2000   --batch_size 64 \
+        --ckpt_path ./model/gen_cgan_v1/ \
+        --FPD_path ./evaluation/pre_statistics_all.npz \
+        --n_classes 4 \
+        --version 1
+
+
+# June 1, train cgan, 4.5 v2
+srun -u --partition=Sensetime -n1 --gres=gpu:4 --ntasks-per-node=1 -x SG-IDC1-10-51-0-34 \
+        --job-name=ctg_v2 \
+        python train_cgan.py \
+        --class_choice None --epochs 2000   --batch_size 64 \
+        --ckpt_path ./model/gen_cgan_v2/ \
+        --FPD_path ./evaluation/pre_statistics_all.npz \
+        --n_classes 4 \
+        --version 2
+
+# June 1, train cgan, 4.5 v3
+srun -u --partition=Sensetime -n1 --gres=gpu:4 --ntasks-per-node=1 -x SG-IDC1-10-51-0-34 \
+        --job-name=ctg_v3 \
+        python train_cgan.py \
+        --class_choice None --epochs 2000   --batch_size 64 \
+        --ckpt_path ./model/gen_cgan_v3/ \
+        --FPD_path ./evaluation/pre_statistics_all.npz \
+        --n_classes 4 \
+        --version 3
+
+
+
+# June 1, train cgan, 4.5 v4
+srun -u --partition=Sensetime -n1 --gres=gpu:4 --ntasks-per-node=1 -x SG-IDC1-10-51-0-34 \
+        --job-name=ctg_v4 \
+        python train_cgan.py \
+        --class_choice None --epochs 2000   --batch_size 64 \
+        --ckpt_path ./model/gen_cgan_v4/ \
+        --FPD_path ./evaluation/pre_statistics_all.npz \
+        --n_classes 4 \
+        --version 4
+
+
+# trail using cgan 4.5 model to test against pre 4 npz
+srun -u --partition=Sensetime -n1 --gres=gpu:4 --ntasks-per-node=1 -x SG-IDC1-10-51-0-34 \
+        --job-name=ctg_tv1 \
+        python train_cgan.py \
+        --class_choice None --epochs 2000   --batch_size 64 \
+        --ckpt_path ./model/checkpoints2/ \
+        --FPD_path ./evaluation/pre_statistics_all.npz \
+        --n_classes 4 \
+        --version 1 \
+        --FPD_path ./evaluation/pre_statistics_4x500.npz \
+        --ckpt_load ./model/gen_cgan_v1/tree_ckpt_400_None.pt
+
+# trial using gan 4.5 model to test against pre 4 npz
 srun -u --partition=Sensetime -n1 --gres=gpu:4 --ntasks-per-node=4 -x SG-IDC1-10-51-0-34 \
-        --job-name=tg_4.5 \
+        --job-name=tg_test \
         python train.py \
         --class_choice None --epochs 2000   --batch_size 64  \
         --ratio_base 500 \
         --dataset ShapeNet_v0  \
-        --ckpt_path gen_gan_4.5 \
+        --ckpt_path ./model/checkpoints2/ \
+        --FPD_path ./evaluation/pre_statistics_4x500.npz \
+        --ckpt_load ./gen_gan_4.5tree_ckpt_1155_None.pt
+
+# June 1, train train gan using rGAN data
+srun -u --partition=Sensetime -n1 --gres=gpu:4 --ntasks-per-node=4 -x SG-IDC1-10-51-0-34 \
+        --job-name=rgan_chair.5c \
+        python train.py \
+        --class_choice Chair --epochs 2000   --batch_size 64  \
+        --ratio_base 500 \
+        --dataset ShapeNet_v0_rGAN_Chair  \
+        --ckpt_path ./model/gen_rgan_chair/ \
+        --FPD_path ./evaluation/pre_statistics_chair.npz
+
+# May 31, train gan, 4 class 500, 
+srun -u --partition=Sensetime -n1 --gres=gpu:4 --ntasks-per-node=4 -x SG-IDC1-10-51-0-34 \
+        --job-name=tg_4.5c \
+        python train.py \
+        --class_choice None --epochs 2000   --batch_size 64  \
+        --ratio_base 500 \
+        --dataset ShapeNet_v0  \
+        --ckpt_path ./model/gen_gan_4.5/ \
         --FPD_path ./evaluation/pre_statistics_all.npz
 
+# May 31, train gan, 4 class 1000, 
 srun -u --partition=Sensetime -n1 --gres=gpu:4 --ntasks-per-node=4 -x SG-IDC1-10-51-0-34 \
-        --job-name=tg_4.1 \
+        --job-name=tg_4.1c \
         python train.py \
         --class_choice None --epochs 2000   --batch_size 64  \
         --ratio_base 1000 \
         --dataset ShapeNet_v0  \
-        --ckpt_path gen_gan_4.1 \
+        --ckpt_path ./model/gen_gan_4.1/ \
         --FPD_path ./evaluation/pre_statistics_all.npz
 
 
@@ -138,17 +280,7 @@ srun -u --partition=Sensetime -n1 --gres=gpu:4 --ntasks-per-node=1 -x SG-IDC1-10
         --class_choice Chair --epochs 2000  \
         --ckpt_load tree_ckpt_420_Chair.pt
 
-# tg_plane script, on 11pm May 14 (IP but not shown in squeue)
-srun -u --partition=Sensetime -n1 --gres=gpu:4 --ntasks-per-node=1 -x SG-IDC1-10-51-0-34 \
-        --job-name=tg_plane \
-        python train.py \
-        --class_choice Airplane --epochs 2000 --batch_size 20        
 
-srun -u --partition=Sensetime -n1 --gres=gpu:4 --ntasks-per-node=1 -x SG-IDC1-10-51-0-34 \
-        --job-name=tg_plane \
-        python train.py \
-        --class_choice Airplane --epochs 2000   \
-        --ckpt_load tree_ckpt_530_Chair.pt
 # tg_all 
 srun -u --partition=Sensetime -n1 --gres=gpu:4 --ntasks-per-node=1 -x SG-IDC1-10-51-0-34 \
         --job-name=tg_all \

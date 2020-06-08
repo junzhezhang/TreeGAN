@@ -15,6 +15,7 @@ import warnings
 from numpy.linalg import norm
 from scipy.stats import entropy
 import torch
+import math
 # from . general_utils import iterate_in_chunks, unit_cube_grid_point_cloud
 # from chamfer_distance import ChamferDistance
 # import emd.emd_module as emd
@@ -310,3 +311,4 @@ def _jsdiv(P, Q):
     M = 0.5 * (P_ + Q_)
 
     return 0.5 * (_kldiv(P_, M) + _kldiv(Q_, M))
+

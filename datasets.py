@@ -4,7 +4,7 @@ import os
 import os.path
 import torch
 import numpy as np
-
+from plyfile import PlyData, PlyElement
 
 class ShapeNet_v0(data.Dataset):
     '''
@@ -50,6 +50,7 @@ class ShapeNet_v0(data.Dataset):
             dir_seg = os.path.join(self.root, self.cat[item], 'points_label')
             dir_sampling = os.path.join(self.root, self.cat[item], 'sampling')
             fns = sorted(os.listdir(dir_point))
+            # TODO no permutation here !!!!
             for i in range(self.cat2cnt[item]):
                 token = (os.path.splitext(os.path.basename(fns[i]))[0])
                 self.meta[item].append((os.path.join(dir_point, token + '.pts'), os.path.join(dir_seg, token + '.seg'), os.path.join(dir_sampling, token + '.sam')))
@@ -79,6 +80,7 @@ class ShapeNet_v0(data.Dataset):
             choice = np.loadtxt(fn[3]).astype(np.int64)
             assert len(choice) == self.npoints, "Need to match number of choice(2048) with number of vertices."
         else:
+            # TODO was it possible to select duplicate points???
             choice = np.random.randint(0, len(seg), size=self.npoints)
         if not os.path.isdir('gt_pointsets'):
             os.mkdir('gt_pointsets')
@@ -97,5 +99,31 @@ class ShapeNet_v0(data.Dataset):
         else:
             return point_set, seg
 
+    def __len__(self):
+        return len(self.datapath)
+
+class ShapeNet_v0_rGAN_Chair(data.Dataset):
+    def __init__(self):
+        # there are 6778, would like to sample 3000 only.
+        self.n_pcs = 3000
+        self.npoints =  2048
+        self.dir = '/mnt/lustre/share/zhangjunzhe/shape_net_core_uniform_samples_2048/03001627'
+        fns = sorted(os.listdir(self.dir))
+        np.random.seed(0)
+        perm_list = np.random.permutation(len(fns))
+        self.datapath = list(np.array(fns)[perm_list[0:self.n_pcs]])
+        print('len of datapath',len(self.datapath))
+        # train_setups = setups[perm_list[0:train_setup_num]]
+
+    def __getitem__(self, index):
+        cls = 1 # TODO dummy
+        datapath = os.path.join(self.dir,self.datapath[index])
+        with open(datapath, 'rb') as f:
+            plydata = PlyData.read(f)
+        pcd = np.array([plydata.elements[0].data['x'],plydata.elements[0].data['y'],plydata.elements[0].data['z']])
+        pcd_tensor = torch.from_numpy(np.transpose(pcd))
+        # print(pcd_tensor.shape)
+        return pcd_tensor, cls
+    
     def __len__(self):
         return len(self.datapath)

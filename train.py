@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 
 from data.dataset_benchmark import BenchmarkDataset
-from datasets import ShapeNet_v0
+from datasets import *
 from model.gan_network import Generator, Discriminator
 from model.gradient_penalty import GradientPenalty
 from evaluation.FPD import calculate_fpd
@@ -23,6 +23,8 @@ class TreeGAN():
             class_choice = ['Airplane','Car','Chair','Table']
             ratio = [args.ratio_base] * 4
             self.data = ShapeNet_v0(root=args.dataset_path, npoints=args.point_num, uniform=None, class_choice=class_choice,ratio=ratio)
+        elif args.dataset == 'ShapeNet_v0_rGAN_Chair':
+            self.data = ShapeNet_v0_rGAN_Chair()
         else:
             self.data = BenchmarkDataset(root=args.dataset_path, npoints=args.point_num, uniform=None, class_choice=args.class_choice)
         # TODO num workers to change back to 4
@@ -31,7 +33,7 @@ class TreeGAN():
         # ----------------------------------------------------------------------------------------------------- #
 
         # -------------------------------------------------Module---------------------------------------------- #
-        self.G = Generator(batch_size=args.batch_size, features=args.G_FEAT, degrees=args.DEGREE, support=args.support).to(args.device)
+        self.G = Generator(batch_size=args.batch_size, features=args.G_FEAT, degrees=args.DEGREE, support=args.support,version=0).to(args.device)
         # import pdb; pdb.set_trace()
         #jz default features=0.5*args.D_FEAT
         self.D = Discriminator(batch_size=args.batch_size, features=args.D_FEAT).to(args.device)             
@@ -194,7 +196,7 @@ class TreeGAN():
 
                 fpd = calculate_fpd(fake_pointclouds, statistic_save_path=self.args.FPD_path, batch_size=100, dims=1808, device=self.args.device)
                 metric['FPD'].append(fpd)
-                print('[{:4} Epoch] Frechet Pointcloud Distance <<< {:.4f} >>>'.format(epoch, fpd))
+                print('-------------------------[{:4} Epoch] Frechet Pointcloud Distance <<< {:.4f} >>>'.format(epoch, fpd))
 
                 class_name = args.class_choice if args.class_choice is not None else 'all'
                 # TODO
@@ -224,7 +226,7 @@ if __name__ == '__main__':
     torch.cuda.set_device(args.device)
 
     SAVE_CHECKPOINT = args.ckpt_path + args.ckpt_save if args.ckpt_save is not None else None
-    LOAD_CHECKPOINT = args.ckpt_path + args.ckpt_load if args.ckpt_load is not None else None
+    LOAD_CHECKPOINT = args.ckpt_load if args.ckpt_load is not None else None
     RESULT_PATH = args.result_path + args.result_save
 
     model = TreeGAN(args)

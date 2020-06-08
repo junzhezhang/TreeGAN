@@ -6,7 +6,7 @@ from layers.gcn import TreeGCN
 from math import ceil
 
 class Discriminator(nn.Module):
-    def __init__(self, batch_size, features):
+    def __init__(self, batch_size, features,version=0):
         # import pdb; pdb.set_trace()
         self.batch_size = batch_size
         self.layer_num = len(features)-1
@@ -53,7 +53,7 @@ class Discriminator(nn.Module):
 
 
 class Generator(nn.Module):
-    def __init__(self, batch_size, features, degrees, support):
+    def __init__(self, batch_size, features, degrees, support,version=0):
         self.batch_size = batch_size
         self.layer_num = len(features)-1
         assert self.layer_num == len(degrees), "Number of features should be one more than number of degrees."
